@@ -53,7 +53,7 @@ def main():
     initial_state = (0., 0., 0., 0.)
     #final_state = (1., 3*math.pi/2., 0., 0.)
     final_state = None
-    x_traj = planner._solve_traj_opt(initial_state, final_state)
+    x_traj, total_cost = planner._solve_traj_opt(initial_state, final_state)
 
     vis = PlanarRigidBodyVisualizer(tree, xlim=[-2.5, 2.5], ylim=[-1, 2.5])
     ani = vis.animate(x_traj, repeat=True)

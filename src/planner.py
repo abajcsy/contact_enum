@@ -38,9 +38,8 @@ class Planner:
             RuntimeError: raised if the optimization fails
         '''
 
-        print(initial_state)
-        print(final_state)
-        print(duration_bounds)
+        print("Initial state: {}\nFinal state: {}\nMin duration: {} s\nMax duration: {} s".format(
+            initial_state, final_state, duration_bounds[0], duration_bounds[1]))
 
         traj_opt = DirectCollocation(self.plant, self.context, 
                                      self.opt_params['num_time_samples'],
@@ -59,9 +58,9 @@ class Planner:
 
         x = traj_opt.state()
         u = traj_opt.input()
-        for i in range(len(u)):
-            traj_opt.AddConstraintToAllKnotPoints(limits_low[i] <= u[i])
-            traj_opt.AddConstraintToAllKnotPoints(u[i] <= limits_upp[i])
+        # for i in range(len(u)):
+        #     traj_opt.AddConstraintToAllKnotPoints(limits_low[i] <= u[i])
+        #     traj_opt.AddConstraintToAllKnotPoints(u[i] <= limits_upp[i])
 
         for signed_dist_func in self.signed_dist_funcs:
             traj_opt.AddConstraintToAllKnotPoints(signed_dist_func(x) >= 0)
@@ -80,6 +79,11 @@ class Planner:
                                                                       np.column_stack((initial_state,
                                                                                        final_state)))
             traj_opt.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
+        else:
+            initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 0.4 * 21],
+                                                                      np.column_stack((initial_state,
+                                                                                       initial_state)))
+            traj_opt.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
 
         result = traj_opt.Solve()
 
@@ -97,7 +101,6 @@ class Planner:
 
         return traj_opt.ReconstructStateTrajectory(), total_cost
 
-
     def _enumerate_modes(self, tmin, T, dt, dc):
         """
         Returns a set of contact points and contact times. The contact points
@@ -108,10 +111,10 @@ class Planner:
         # TODO Need to make this general for arbitrary contact surfaces
         #cmin = 0.0
         cmin = 0.4
-        cmax = 0.75
+        cmax = 0.8
+        #cmax = 0.75
         contacts = np.linspace(cmin,cmax,cmax/dc)
         times = np.linspace(tmin,T,T/dt)
-        # return (contacts, times)
         
         modes = list(itertools.product(contacts, times)) + [(None, None)]
         return modes
@@ -123,10 +126,8 @@ class Planner:
         contact-free trajectory. 
         """
         if c is None:
-            try:
-                traj_x, total_cost = self._solve_traj_opt(initial_state, None, (T, T))
-            except RuntimeError as e:
-                print("An error occured! {}".format(e))
+            # TODO raise exception on failure
+            traj_x, total_cost = self._solve_traj_opt(initial_state, None, (T, T))
 
             return traj_x, None, total_cost
 
@@ -134,15 +135,13 @@ class Planner:
         x_wall = 2.0
         pole_len = 0.5
         cart_height = 0.4
-        theta = math.asin((c - cart_height)/pole_len)
+        theta = math.acos((c - cart_height) / pole_len)
         x = x_wall - math.sqrt(pole_len**2 - (c - cart_height)**2)
 
         # TODO Need to address the final velocities = 0?
         final_state = (round(x, 8), round(theta, 8), 0., 0.) # TODO why is there a rounding error?
 
-        #import ipdb; ipdb.set_trace()
-
-        # TODO wrap in try except block
+        # TODO raise exception on failure
         x_traj_nc, cost_nc = self._solve_traj_opt(initial_state, final_state, (t, t))
 
         # append zero control and x_traj_t..T constant at final_state

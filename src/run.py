@@ -28,12 +28,12 @@ def init_signed_dist_funcs():
 
     # Distance from the tip of the pole to the wall
     def dist_pole_wall(x):
-        pole_x = pole_length * sym.cos(x[1]) + x[0]
+        pole_x = pole_length * sym.sin(x[1]) + x[0]
         return wall_x - pole_x
 
     # Distance from the tip of the pole to the ground
     def dist_pole_ground(x):
-        pole_y = pole_length * sym.sin(x[1]) + cart_height
+        pole_y = pole_length * sym.cos(x[1]) + cart_height
         return pole_y
 
     # Distance from the front of the cart to the wall
@@ -60,18 +60,21 @@ def test_planner():
 
     input_weight = 1.
     goal_weight = 30.
+    #goal_x = 2.
+    goal_x = 1.7
     def running_cost(x, u):
-        return input_weight * (u[0]**2 + u[1]**2) + goal_weight * (x[0] - 2.)**2
+        return input_weight * (u[0]**2 + u[1]**2) + goal_weight * (x[0] - goal_x)**2
 
     signed_dist_funcs = init_signed_dist_funcs()
 
     planner = Planner(plant, context, running_cost, signed_dist_funcs)
 
-    initial_state = (0., math.pi/2, 0., 0.)
-    #initial_state = (0., 0., 0., 0.)
+    #initial_state = (0., math.pi/2, 0., 0.)
+    initial_state = (0., 0., 0., 0.)
     #final_state = (1., 3*math.pi/2., 0., 0.)
     final_state = None
-    duration_bounds = (3., 3.)
+    #duration_bounds = (3., 3.)
+    duration_bounds = (8., 8.)
     x_traj, total_cost = planner._solve_traj_opt(initial_state, final_state, duration_bounds)
 
     # from pydrake.all import PiecewisePolynomial
@@ -105,8 +108,9 @@ def test_enumeration_planner():
 
     input_weight = 1.
     goal_weight = 30.
+    goal_x = 1.
     def running_cost(x, u):
-        return input_weight * (u[0]**2 + u[1]**2) + goal_weight * (x[0] - 1.)**2
+        return input_weight * (u[0]**2 + u[1]**2) + goal_weight * (x[0] - goal_x)**2
 
     signed_dist_funcs = init_signed_dist_funcs()
 
@@ -129,8 +133,8 @@ def test_enumeration_planner():
 
 
 def main():
-    #test_planner()
-    test_enumeration_planner()
+    test_planner()
+    #test_enumeration_planner()
 
 
 if __name__ == '__main__':

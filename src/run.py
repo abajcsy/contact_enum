@@ -67,8 +67,8 @@ def test_planner():
 
     planner = Planner(plant, context, running_cost, signed_dist_funcs)
 
-    #initial_state = (0., math.pi, 0., 0.)
-    initial_state = (0., 0., 0., 0.)
+    initial_state = (0., math.pi/2, 0., 0.)
+    #initial_state = (0., 0., 0., 0.)
     #final_state = (1., 3*math.pi/2., 0., 0.)
     final_state = None
     duration_bounds = (3., 3.)
@@ -89,8 +89,48 @@ def test_planner():
     plt.show()
 
 
+def test_enumeration_planner():
+    tree = RigidBodyTree()
+    AddModelInstanceFromUrdfFile("resources/cartpole2.urdf", 
+                                 FloatingBaseType.kFixed,
+                                 None,
+                                 tree)
+    AddModelInstanceFromUrdfFile("resources/wall.urdf", 
+                                 FloatingBaseType.kFixed,
+                                 None,
+                                 tree)
+
+    plant = RigidBodyPlant(tree)
+    context = plant.CreateDefaultContext()
+
+    input_weight = 1.
+    goal_weight = 30.
+    def running_cost(x, u):
+        return input_weight * (u[0]**2 + u[1]**2) + goal_weight * (x[0] - 1.)**2
+
+    signed_dist_funcs = init_signed_dist_funcs()
+
+    planner = Planner(plant, context, running_cost, signed_dist_funcs)
+
+    initial_state = (0., 0., 0., 0.)
+    #tmin = 0.5
+    tmin = 4
+    T = 8
+    #dt = 0.1
+    #dc = 0.1
+    dt = 0.5
+    dc = 0.35
+    x_traj_nc, x_traj_c = planner.plan(initial_state, tmin, T, dt, dc)
+
+    vis = PlanarRigidBodyVisualizer(tree, xlim=[-2.5, 2.5], ylim=[-1, 2.5])
+    ani = vis.animate(x_traj_nc, repeat=True)
+
+    plt.show()    
+
+
 def main():
-    test_planner()
+    #test_planner()
+    test_enumeration_planner()
 
 
 if __name__ == '__main__':

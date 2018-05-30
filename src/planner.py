@@ -2,6 +2,7 @@
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import itertools
 
 from pydrake.all import (
     DirectCollocation,
@@ -36,6 +37,11 @@ class Planner:
         Raises:
             RuntimeError: raised if the optimization fails
         '''
+
+        print(initial_state)
+        print(final_state)
+        print(duration_bounds)
+
         traj_opt = DirectCollocation(self.plant, self.context, 
                                      self.opt_params['num_time_samples'],
                                      self.opt_params['minimum_timestep'],
@@ -100,36 +106,55 @@ class Planner:
         non-contact mode.
         """
         # TODO Need to make this general for arbitrary contact surfaces
-        cmin = 0.0
+        #cmin = 0.0
+        cmin = 0.4
         cmax = 0.75
-        contacts = np.append(np.linspace(cmin,cmax,cmax/dc), np.array(None))
-        times = np.append(np.linspace(tmin,T,T/dt), np.array(None))
-        return (contacts, times)
+        contacts = np.linspace(cmin,cmax,cmax/dc)
+        times = np.linspace(tmin,T,T/dt)
+        # return (contacts, times)
+        
+        modes = list(itertools.product(contacts, times)) + [(None, None)]
+        return modes
 
-    def _plan_hybrid_traj(self, initial_state, c, t):
+    def _plan_hybrid_traj(self, initial_state, c, t, T):
         """
         Returns a trajectory and associated cost (x_traj, total_cost) for a 
         given hybrid mode. If c and t are None, then we are simply planning a 
         contact-free trajectory. 
         """
-        final_state = None
+        if c is None:
+            try:
+                traj_x, total_cost = self._solve_traj_opt(initial_state, None, (T, T))
+            except RuntimeError as e:
+                print("An error occured! {}".format(e))
 
-        if c is not None:
-            # in contact mode, plan with contact-constrained final state
-            x_wall = 2.0
-            pole_len = 0.5
-            cart_height = 0.4
-            theta = np.arcsin((c - cart_height)/pole_len)
-            x = x_wall - np.sqrt(pole_len**2 - (c - cart_height)**2)
-            # TODO Need to address the final velocities = 0?
-            final_state = (x, theta, 0., 0.)
+            return traj_x, None, total_cost
 
-        x_traj, total_cost = planner._solve_traj_opt(initial_state, final_state)
+        # in contact mode, plan with contact-constrained final state
+        x_wall = 2.0
+        pole_len = 0.5
+        cart_height = 0.4
+        theta = math.asin((c - cart_height)/pole_len)
+        x = x_wall - math.sqrt(pole_len**2 - (c - cart_height)**2)
 
-        if c is not None:
-            # append zero control and x_traj_t..T constant at final_state
-            
-        return x_traj, total_cost
+        # TODO Need to address the final velocities = 0?
+        final_state = (round(x, 8), round(theta, 8), 0., 0.) # TODO why is there a rounding error?
+
+        #import ipdb; ipdb.set_trace()
+
+        # TODO wrap in try except block
+        x_traj_nc, cost_nc = self._solve_traj_opt(initial_state, final_state, (t, t))
+
+        # append zero control and x_traj_t..T constant at final_state
+        if t >= T:
+            x_traj_c = None
+        else:
+            x_traj_c = PiecewisePolynomial.FirstOrderHold([t, T],
+                                                          np.column_stack((final_state,
+                                                                           final_state)))
+        cost_c = 0. # TODO compute this cost 
+
+        return x_traj_nc, x_traj_c, cost_nc + cost_c
 
     def plan(self, initial_state, tmin, T, dt, dc):
         """
@@ -137,17 +162,26 @@ class Planner:
         or not in contact).
         tmin >= 0 is when to switch into contact mode, T is final time
         """
-        (contacts, times) = self._enumerate_modes(tmin, tmax, dt, dc)
-        num_trajs = len(contacts)*len(times)
+        #(contacts, times) = self._enumerate_modes(tmin, T, dt, dc)
+        modes = self._enumerate_modes(tmin, T, dt, dc)
+        #num_trajs = len(contacts)*len(times)
+        num_trajs = len(modes)
         trajs = [None]*num_trajs
         costs = np.zeros(num_trajs)
         idx = 0
-        for c in contacts
-            for t in times
-                x_traj, total_cost = self._plan_hybrid_traj(initial_state, c, t)
-                trajs[idx] = x_traj
-                costs[idx] = total_cost
-                idx += 1
+        # for c in contacts:
+        #     for t in times:
+        #         x_traj_nc, x_traj_c, total_cost = self._plan_hybrid_traj(initial_state, c, t, T)
+        #         trajs[idx] = (x_traj_nc, x_traj_c)
+        #         costs[idx] = total_cost
+        #         idx += 1
+        
+        for (c, t) in modes:
+            x_traj_nc, x_traj_c, total_cost = self._plan_hybrid_traj(initial_state, c, t, T)
+            trajs[idx] = (x_traj_nc, x_traj_c)
+            costs[idx] = total_cost
+            idx += 1
+            
         min_idx = np.argmin(costs)
         return trajs[min_idx]
 

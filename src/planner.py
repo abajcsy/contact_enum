@@ -66,9 +66,14 @@ class Planner:
 
         print("Total cost: {}".format(total_cost))
 
-        return traj_opt.ReconstructStateTrajectory()
+        return traj_opt.ReconstructStateTrajectory(), total_cost
 
     def plan(self):
         print("not implemented!")
+        # need to implement loop over mode sequences
+        return None
+
+    def _plan_hybrid_traj(self):
+        # need to implement
         return None
 

@@ -60,8 +60,9 @@ def test_planner():
 
     input_weight = 1.
     goal_weight = 30.
+    #goal_weight = 5.
     #goal_x = 2.
-    goal_x = 1.7
+    goal_x = 1.
     def running_cost(x, u):
         return input_weight * (u[0]**2 + u[1]**2) + goal_weight * (x[0] - goal_x)**2
 
@@ -133,8 +134,8 @@ def test_enumeration_planner():
 
 
 def main():
-    test_planner()
-    #test_enumeration_planner()
+    #test_planner()
+    test_enumeration_planner()
 
 
 if __name__ == '__main__':

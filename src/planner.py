@@ -58,9 +58,9 @@ class Planner:
 
         x = traj_opt.state()
         u = traj_opt.input()
-        # for i in range(len(u)):
-        #     traj_opt.AddConstraintToAllKnotPoints(limits_low[i] <= u[i])
-        #     traj_opt.AddConstraintToAllKnotPoints(u[i] <= limits_upp[i])
+        for i in range(len(u)):
+            traj_opt.AddConstraintToAllKnotPoints(limits_low[i] <= u[i])
+            traj_opt.AddConstraintToAllKnotPoints(u[i] <= limits_upp[i])
 
         for signed_dist_func in self.signed_dist_funcs:
             traj_opt.AddConstraintToAllKnotPoints(signed_dist_func(x) >= 0)

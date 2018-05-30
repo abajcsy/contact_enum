@@ -11,6 +11,9 @@ from pydrake.multibody.rigid_body_tree import (
 from pydrake.multibody.rigid_body_plant import (
     RigidBodyPlant
 )
+from pydrake.systems.framework import (
+    BasicVector
+)
 from underactuated import (
     PlanarRigidBodyVisualizer
 )
@@ -46,7 +49,11 @@ def init_signed_dist_funcs():
 
 def test_planner():
     tree = RigidBodyTree()
-    AddModelInstanceFromUrdfFile("resources/cartpole2.urdf", 
+    # AddModelInstanceFromUrdfFile("resources/cartpole2.urdf", 
+    #                              FloatingBaseType.kFixed,
+    #                              None,
+    #                              tree)
+    AddModelInstanceFromUrdfFile("resources/cartpole_disturbance.urdf", 
                                  FloatingBaseType.kFixed,
                                  None,
                                  tree)
@@ -58,25 +65,37 @@ def test_planner():
     plant = RigidBodyPlant(tree)
     context = plant.CreateDefaultContext()
 
+    #d = 5.
+    #d = 0.
+    # d = 100
+    # context.FixInputPort(0, BasicVector([d, 0.]))
+
     input_weight = 1.
     goal_weight = 30.
     #goal_weight = 5.
     #goal_x = 2.
     goal_x = 1.
-    def running_cost(x, u):
+    def running_cost(x, u, t):
         return input_weight * (u[0]**2 + u[1]**2) + goal_weight * (x[0] - goal_x)**2
+
+    def final_cost(x, u, t):
+        return 0.
 
     signed_dist_funcs = init_signed_dist_funcs()
 
-    planner = Planner(plant, context, running_cost, signed_dist_funcs)
+    planner = Planner(plant, context, running_cost, final_cost, signed_dist_funcs)
 
     #initial_state = (0., math.pi/2, 0., 0.)
     initial_state = (0., 0., 0., 0.)
     #final_state = (1., 3*math.pi/2., 0., 0.)
-    final_state = None
+    #final_state = None
+    #final_state = (1.7, 0.64350111, 0.0, 0.0)
+    final_state = (1.5, 1.57079633, 0.0, 0.0)
     #duration_bounds = (3., 3.)
-    duration_bounds = (8., 8.)
-    x_traj, total_cost = planner._solve_traj_opt(initial_state, final_state, duration_bounds)
+    #duration_bounds = (8., 8.)
+    duration_bounds = (5., 5.)
+    d = 14
+    x_traj, total_cost = planner._solve_traj_opt(initial_state, final_state, duration_bounds, d, verbose=True)
 
     # from pydrake.all import PiecewisePolynomial
     # tmp = PiecewisePolynomial.FirstOrderHold([0., 1.],
@@ -95,7 +114,7 @@ def test_planner():
 
 def test_enumeration_planner():
     tree = RigidBodyTree()
-    AddModelInstanceFromUrdfFile("resources/cartpole2.urdf", 
+    AddModelInstanceFromUrdfFile("resources/cartpole_disturbance.urdf", 
                                  FloatingBaseType.kFixed,
                                  None,
                                  tree)
@@ -107,25 +126,34 @@ def test_enumeration_planner():
     plant = RigidBodyPlant(tree)
     context = plant.CreateDefaultContext()
 
+    #d = 5.
+    d = 10.
+    #d = 0.
+
     input_weight = 1.
     goal_weight = 30.
     goal_x = 1.
-    def running_cost(x, u):
+    def running_cost(x, u, t):
         return input_weight * (u[0]**2 + u[1]**2) + goal_weight * (x[0] - goal_x)**2
+
+    def final_cost(x, u, t):
+        return 0.
 
     signed_dist_funcs = init_signed_dist_funcs()
 
-    planner = Planner(plant, context, running_cost, signed_dist_funcs)
+    print("Disturbance is {} N".format(d))
+
+    planner = Planner(plant, context, running_cost, final_cost, signed_dist_funcs)
 
     initial_state = (0., 0., 0., 0.)
     #tmin = 0.5
-    tmin = 4
-    T = 8
+    tmin = 4.
+    T = 8.
     #dt = 0.1
     #dc = 0.1
     dt = 0.5
     dc = 0.35
-    x_traj_nc, x_traj_c = planner.plan(initial_state, tmin, T, dt, dc)
+    x_traj_nc, x_traj_c = planner.plan(initial_state, tmin, T, dt, dc, d)
 
     vis = PlanarRigidBodyVisualizer(tree, xlim=[-2.5, 2.5], ylim=[-1, 2.5])
     ani = vis.animate(x_traj_nc, repeat=True)

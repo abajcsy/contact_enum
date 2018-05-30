@@ -11,16 +11,17 @@ from pydrake.all import (
 )
 
 class Planner:
-    def __init__(self, plant, context, running_cost, signed_dist_funcs=[]):
+    def __init__(self, plant, context, running_cost, final_cost, signed_dist_funcs=[]):
         self.plant = plant
         self.context = context
         self.running_cost = running_cost
+        self.final_cost = final_cost
         self.signed_dist_funcs = signed_dist_funcs
         self.opt_params = {'num_time_samples': 21,
                            'minimum_timestep': 0.1,
                            'maximum_timestep': 0.4}
 
-    def _solve_traj_opt(self, initial_state, final_state=None, duration_bounds=None, verbose=False):
+    def _solve_traj_opt(self, initial_state, final_state=None, duration_bounds=None, d=0.0, verbose=False):
         '''Finds a trajectory from an initial state, optionally to a final state.
         
         Args: 
@@ -28,7 +29,8 @@ class Planner:
             final_state (tuple): the final state (default to None, final state unconstrained)
             duration (tuple): the min and max duration of the trajectory (default to None, 
                               no duration constraints)
-            verbose (bool):
+            d (float): constant disturbance force
+            verbose (bool): enables/disables verbose output
 
         Returns:
             pydrake.trajectories.PiecewisePolynomial: the planned trajectory
@@ -58,14 +60,20 @@ class Planner:
 
         x = traj_opt.state()
         u = traj_opt.input()
-        for i in range(len(u)):
+        t = traj_opt.time()
+        # TODO assuming disturbance is at the last index
+        for i in range(len(u) - 1):
             traj_opt.AddConstraintToAllKnotPoints(limits_low[i] <= u[i])
             traj_opt.AddConstraintToAllKnotPoints(u[i] <= limits_upp[i])
+
+        traj_opt.AddConstraintToAllKnotPoints(u[len(u) - 1] == d)
 
         for signed_dist_func in self.signed_dist_funcs:
             traj_opt.AddConstraintToAllKnotPoints(signed_dist_func(x) >= 0)
 
-        traj_opt.AddRunningCost(self.running_cost(x, u))
+        traj_opt.AddRunningCost(traj_opt.timestep(0) * self.running_cost(x, u, t))
+
+        traj_opt.AddFinalCost(self.final_cost(x, u, t))
 
         # Add initial and final state constraints
         traj_opt.AddBoundingBoxConstraint(initial_state, initial_state,
@@ -92,12 +100,36 @@ class Planner:
 
         state_samples = traj_opt.GetStateSamples()
         input_samples = traj_opt.GetInputSamples()
+        time_samples = traj_opt.GetSampleTimes()
+
+        # for debugging
+        hs = [time_samples[i+1] - time_samples[i] for i in range(len(time_samples)) if i < len(time_samples) - 1]
+        #print(hs)
+
         total_cost = 0.
         for k in range(state_samples.shape[1]):
-            total_cost += self.running_cost(state_samples[:, k], input_samples[:, k])
+            total_cost += (hs[0] * 
+                           self.running_cost(state_samples[:, k], 
+                                             input_samples[:, k], 
+                                             time_samples[k]))
             if verbose:
                 for i, phi in enumerate(self.signed_dist_funcs):
                     print("\tsigned dist {}: {}".format(i, signed_dist_func(state_samples[:, k])))
+
+        if verbose:
+            print("Total cost is {}".format(total_cost))
+
+            u_traj = traj_opt.ReconstructInputTrajectory()
+            times = np.linspace(u_traj.start_time(), u_traj.end_time(), 100)
+            u_lookup = np.vectorize(lambda t: u_traj.value(t)[0])
+            u_values = u_lookup(times)
+
+            plt.figure()
+            plt.plot(times, u_values)
+            plt.xlabel('time (seconds)')
+            plt.ylabel('force (Newtons)')
+
+            plt.show()
 
         return traj_opt.ReconstructStateTrajectory(), total_cost
 
@@ -119,68 +151,72 @@ class Planner:
         modes = list(itertools.product(contacts, times)) + [(None, None)]
         return modes
 
-    def _plan_hybrid_traj(self, initial_state, c, t, T):
+    def _plan_hybrid_traj(self, initial_state, c, t, T, d):
         """
         Returns a trajectory and associated cost (x_traj, total_cost) for a 
         given hybrid mode. If c and t are None, then we are simply planning a 
         contact-free trajectory. 
         """
-        if c is None:
+        try:
+            if c is None:
+                # TODO raise exception on failure
+                traj_x, total_cost = self._solve_traj_opt(initial_state, None, (T, T), d)
+
+                return traj_x, None, total_cost
+
+            # in contact mode, plan with contact-constrained final state
+            x_wall = 2.0
+            pole_len = 0.5
+            cart_height = 0.4
+            theta = math.acos((c - cart_height) / pole_len)
+            x = x_wall - math.sqrt(pole_len**2 - (c - cart_height)**2)
+
+            # TODO Need to address the final velocities = 0?
+            final_state = (round(x, 8), round(theta, 8), 0., 0.) # TODO why is there a rounding error?
+
             # TODO raise exception on failure
-            traj_x, total_cost = self._solve_traj_opt(initial_state, None, (T, T))
+            x_traj_nc, cost_nc = self._solve_traj_opt(initial_state, final_state, (t, t), d)
 
-            return traj_x, None, total_cost
+            # append zero control and x_traj_t..T constant at final_state
+            if t >= T:
+                x_traj_c = None
+            else:
+                x_traj_c = PiecewisePolynomial.FirstOrderHold([t, T],
+                                                              np.column_stack((final_state,
+                                                                               final_state)))
+            cost_c = 0. # TODO compute this cost 
 
-        # in contact mode, plan with contact-constrained final state
-        x_wall = 2.0
-        pole_len = 0.5
-        cart_height = 0.4
-        theta = math.acos((c - cart_height) / pole_len)
-        x = x_wall - math.sqrt(pole_len**2 - (c - cart_height)**2)
+            return x_traj_nc, x_traj_c, cost_nc + cost_c
+        except RuntimeError as e:
+            raise e
 
-        # TODO Need to address the final velocities = 0?
-        final_state = (round(x, 8), round(theta, 8), 0., 0.) # TODO why is there a rounding error?
-
-        # TODO raise exception on failure
-        x_traj_nc, cost_nc = self._solve_traj_opt(initial_state, final_state, (t, t))
-
-        # append zero control and x_traj_t..T constant at final_state
-        if t >= T:
-            x_traj_c = None
-        else:
-            x_traj_c = PiecewisePolynomial.FirstOrderHold([t, T],
-                                                          np.column_stack((final_state,
-                                                                           final_state)))
-        cost_c = 0. # TODO compute this cost 
-
-        return x_traj_nc, x_traj_c, cost_nc + cost_c
-
-    def plan(self, initial_state, tmin, T, dt, dc):
+    def plan(self, initial_state, tmin, T, dt, dc, d):
         """
         Returns the minimum cost hybrid trajectory (either in contact
         or not in contact).
         tmin >= 0 is when to switch into contact mode, T is final time
         """
-        #(contacts, times) = self._enumerate_modes(tmin, T, dt, dc)
         modes = self._enumerate_modes(tmin, T, dt, dc)
-        #num_trajs = len(contacts)*len(times)
         num_trajs = len(modes)
-        trajs = [None]*num_trajs
+        trajs = [(None, None)] * num_trajs
         costs = np.zeros(num_trajs)
         idx = 0
-        # for c in contacts:
-        #     for t in times:
-        #         x_traj_nc, x_traj_c, total_cost = self._plan_hybrid_traj(initial_state, c, t, T)
-        #         trajs[idx] = (x_traj_nc, x_traj_c)
-        #         costs[idx] = total_cost
-        #         idx += 1
         
-        for (c, t) in modes:
-            x_traj_nc, x_traj_c, total_cost = self._plan_hybrid_traj(initial_state, c, t, T)
-            trajs[idx] = (x_traj_nc, x_traj_c)
-            costs[idx] = total_cost
-            idx += 1
+        for k, (c, t) in enumerate(modes):
+            try:
+                x_traj_nc, x_traj_c, total_cost = self._plan_hybrid_traj(initial_state, c, t, T, d)
+                trajs[k] = (x_traj_nc, x_traj_c)
+                costs[k] = total_cost
+                print("Cost of trajectory {} of {} is {}".format(k, len(modes) - 1, costs[idx]))
+            except RuntimeError as e:
+                print("Failed to plan a hybrid trajectory!")
+                trajs[k] = (None, None)
+                costs[k] = 1e9
             
         min_idx = np.argmin(costs)
+
+        in_contact = trajs[min_idx][1] is not None
+        print("Choosing trajectory at index {} with cost {} (in contact? {})".format(min_idx, costs[min_idx], in_contact))
+
         return trajs[min_idx]
 

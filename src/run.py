@@ -18,10 +18,10 @@ from underactuated import (
     PlanarRigidBodyVisualizer
 )
 from planner import Planner
+import pydrake.symbolic as sym
 
 
 def init_signed_dist_funcs():
-    import pydrake.symbolic as sym
     signed_dist_funcs = []
 
     wall_x = 2.
@@ -83,18 +83,25 @@ def test_planner():
 
     signed_dist_funcs = init_signed_dist_funcs()
 
-    planner = Planner(plant, context, running_cost, final_cost, signed_dist_funcs)
+    def final_state_constraint(x):
+        pole_length = 0.5
+        wall_x = 2.
+        return x[0] + pole_length * sym.sin(x[1]) - wall_x
+
+    #final_state_constraint = None
+
+    planner = Planner(plant, context, running_cost, final_cost, signed_dist_funcs, final_state_constraint)
 
     #initial_state = (0., math.pi/2, 0., 0.)
     initial_state = (0., 0., 0., 0.)
     #final_state = (1., 3*math.pi/2., 0., 0.)
-    #final_state = None
+    final_state = None
     #final_state = (1.7, 0.64350111, 0.0, 0.0)
-    final_state = (1.5, 1.57079633, 0.0, 0.0)
+    #final_state = (1.5, 1.57079633, 0.0, 0.0)
     #duration_bounds = (3., 3.)
     #duration_bounds = (8., 8.)
     duration_bounds = (5., 5.)
-    d = 14
+    d = 0
     x_traj, total_cost = planner._solve_traj_opt(initial_state, final_state, duration_bounds, d, verbose=True)
 
     # from pydrake.all import PiecewisePolynomial

@@ -11,12 +11,13 @@ from pydrake.all import (
 )
 
 class Planner:
-    def __init__(self, plant, context, running_cost, final_cost, signed_dist_funcs=[]):
+    def __init__(self, plant, context, running_cost, final_cost, signed_dist_funcs=[], final_state_constraint=None):
         self.plant = plant
         self.context = context
         self.running_cost = running_cost
         self.final_cost = final_cost
         self.signed_dist_funcs = signed_dist_funcs
+        self.final_state_constraint = final_state_constraint
         self.opt_params = {'num_time_samples': 21,
                            'minimum_timestep': 0.1,
                            'maximum_timestep': 0.4}
@@ -79,6 +80,10 @@ class Planner:
         traj_opt.AddBoundingBoxConstraint(initial_state, initial_state,
                                           traj_opt.initial_state())
 
+        if self.final_state_constraint:
+            traj_opt.AddConstraint(self.final_state_constraint(traj_opt.final_state()) == 0)
+
+        # TODO this is redundant with the final state equality constraint above
         if final_state:
             traj_opt.AddBoundingBoxConstraint(final_state, final_state,
                                               traj_opt.final_state())

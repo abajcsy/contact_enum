@@ -134,8 +134,8 @@ def test_enumeration_planner():
     context = plant.CreateDefaultContext()
 
     #d = 5.
-    d = 10.
-    #d = 0.
+    #d = 10.
+    d = 0.
 
     input_weight = 1.
     goal_weight = 30.

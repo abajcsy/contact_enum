@@ -22,7 +22,7 @@ class Planner:
                            'minimum_timestep': 0.1,
                            'maximum_timestep': 0.4}
 
-    def _solve_traj_opt(self, initial_state, final_state=None, duration_bounds=None, d=0.0, verbose=False):
+    def _solve_traj_opt(self, initial_state, constrain_final_state=True, duration_bounds=None, d=0.0, verbose=False):
         '''Finds a trajectory from an initial state, optionally to a final state.
         
         Args: 
@@ -42,7 +42,7 @@ class Planner:
         '''
 
         print("Initial state: {}\nFinal state: {}\nMin duration: {} s\nMax duration: {} s".format(
-            initial_state, final_state, duration_bounds[0], duration_bounds[1]))
+            initial_state, constrain_final_state, duration_bounds[0], duration_bounds[1]))
 
         traj_opt = DirectCollocation(self.plant, self.context, 
                                      self.opt_params['num_time_samples'],
@@ -80,23 +80,28 @@ class Planner:
         traj_opt.AddBoundingBoxConstraint(initial_state, initial_state,
                                           traj_opt.initial_state())
 
-        if self.final_state_constraint:
+        if self.final_state_constraint and constrain_final_state:
             traj_opt.AddConstraint(self.final_state_constraint(traj_opt.final_state()) == 0)
 
-        # TODO this is redundant with the final state equality constraint above
-        if final_state:
-            traj_opt.AddBoundingBoxConstraint(final_state, final_state,
-                                              traj_opt.final_state())
+        # # TODO this is redundant with the final state equality constraint above
+        # if final_state:
+        #     traj_opt.AddBoundingBoxConstraint(final_state, final_state,
+        #                                       traj_opt.final_state())
 
-            initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 0.4 * 21],
-                                                                      np.column_stack((initial_state,
-                                                                                       final_state)))
-            traj_opt.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
-        else:
-            initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 0.4 * 21],
-                                                                      np.column_stack((initial_state,
-                                                                                       initial_state)))
-            traj_opt.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
+        #     initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 0.4 * 21],
+        #                                                               np.column_stack((initial_state,
+        #                                                                                final_state)))
+        #     traj_opt.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
+        # else:
+        #     initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 0.4 * 21],
+        #                                                               np.column_stack((initial_state,
+        #                                                                                initial_state)))
+        #     traj_opt.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
+
+        initial_x_trajectory = PiecewisePolynomial.FirstOrderHold([0., 0.4 * 21],
+                                                                  np.column_stack((initial_state,
+                                                                                   initial_state)))
+        traj_opt.SetInitialTrajectory(PiecewisePolynomial(), initial_x_trajectory)
 
         result = traj_opt.Solve()
 
@@ -147,48 +152,40 @@ class Planner:
         """
         # TODO Need to make this general for arbitrary contact surfaces
         #cmin = 0.0
-        cmin = 0.4
-        cmax = 0.8
-        #cmax = 0.75
-        contacts = np.linspace(cmin,cmax,cmax/dc)
-        times = np.linspace(tmin,T,T/dt)
+        # cmin = 0.4
+        # cmax = 0.8
+        # #cmax = 0.75
+        # contacts = np.linspace(cmin,cmax,cmax/dc)
+        # times = np.linspace(tmin,T,T/dt)
         
-        modes = list(itertools.product(contacts, times)) + [(None, None)]
+        # modes = list(itertools.product(contacts, times)) + [(None, None)]
+        modes = list(np.linspace(tmin,T,T/dt)) + [None]
         return modes
 
-    def _plan_hybrid_traj(self, initial_state, c, t, T, d):
+    def _plan_hybrid_traj(self, initial_state, t, T, d):
         """
         Returns a trajectory and associated cost (x_traj, total_cost) for a 
         given hybrid mode. If c and t are None, then we are simply planning a 
         contact-free trajectory. 
         """
         try:
-            if c is None:
+            if t is None:
                 # TODO raise exception on failure
-                traj_x, total_cost = self._solve_traj_opt(initial_state, None, (T, T), d)
+                traj_x, total_cost = self._solve_traj_opt(initial_state, False, (T, T), d)
 
                 return traj_x, None, total_cost
 
-            # in contact mode, plan with contact-constrained final state
-            x_wall = 2.0
-            pole_len = 0.5
-            cart_height = 0.4
-            theta = math.acos((c - cart_height) / pole_len)
-            x = x_wall - math.sqrt(pole_len**2 - (c - cart_height)**2)
-
-            # TODO Need to address the final velocities = 0?
-            final_state = (round(x, 8), round(theta, 8), 0., 0.) # TODO why is there a rounding error?
-
             # TODO raise exception on failure
-            x_traj_nc, cost_nc = self._solve_traj_opt(initial_state, final_state, (t, t), d)
+            x_traj_nc, cost_nc = self._solve_traj_opt(initial_state, True, (t, t), d)
 
             # append zero control and x_traj_t..T constant at final_state
             if t >= T:
                 x_traj_c = None
             else:
+                # TODO fix this
                 x_traj_c = PiecewisePolynomial.FirstOrderHold([t, T],
-                                                              np.column_stack((final_state,
-                                                                               final_state)))
+                                                              np.column_stack((initial_state,
+                                                                               initial_state)))
             cost_c = 0. # TODO compute this cost 
 
             return x_traj_nc, x_traj_c, cost_nc + cost_c
@@ -207,9 +204,10 @@ class Planner:
         costs = np.zeros(num_trajs)
         idx = 0
         
-        for k, (c, t) in enumerate(modes):
+        #for k, (c, t) in enumerate(modes):
+        for k, t in enumerate(modes):
             try:
-                x_traj_nc, x_traj_c, total_cost = self._plan_hybrid_traj(initial_state, c, t, T, d)
+                x_traj_nc, x_traj_c, total_cost = self._plan_hybrid_traj(initial_state, t, T, d)
                 trajs[k] = (x_traj_nc, x_traj_c)
                 costs[k] = total_cost
                 print("Cost of trajectory {} of {} is {}".format(k, len(modes) - 1, costs[idx]))

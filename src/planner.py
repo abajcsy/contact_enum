@@ -150,16 +150,7 @@ class Planner:
         x-coordinate is fixed). 'None' for contact or time represents a 
         non-contact mode.
         """
-        # TODO Need to make this general for arbitrary contact surfaces
-        #cmin = 0.0
-        # cmin = 0.4
-        # cmax = 0.8
-        # #cmax = 0.75
-        # contacts = np.linspace(cmin,cmax,cmax/dc)
-        # times = np.linspace(tmin,T,T/dt)
-        
-        # modes = list(itertools.product(contacts, times)) + [(None, None)]
-        modes = list(np.linspace(tmin,T,T/dt)) + [None]
+        modes = list(np.linspace(tmin, T, T/dt)) + [None]
         return modes
 
     def _plan_hybrid_traj(self, initial_state, t, T, d):
@@ -170,12 +161,11 @@ class Planner:
         """
         try:
             if t is None:
-                # TODO raise exception on failure
+                print("Planning hybrid traj without final state constraint")
                 traj_x, total_cost = self._solve_traj_opt(initial_state, False, (T, T), d)
 
                 return traj_x, None, total_cost
 
-            # TODO raise exception on failure
             x_traj_nc, cost_nc = self._solve_traj_opt(initial_state, True, (t, t), d)
 
             # append zero control and x_traj_t..T constant at final_state
@@ -210,7 +200,7 @@ class Planner:
                 x_traj_nc, x_traj_c, total_cost = self._plan_hybrid_traj(initial_state, t, T, d)
                 trajs[k] = (x_traj_nc, x_traj_c)
                 costs[k] = total_cost
-                print("Cost of trajectory {} of {} is {}".format(k, len(modes) - 1, costs[idx]))
+                print("Cost of trajectory {} of {} is {}".format(k, len(modes) - 1, costs[k]))
             except RuntimeError as e:
                 print("Failed to plan a hybrid trajectory!")
                 trajs[k] = (None, None)

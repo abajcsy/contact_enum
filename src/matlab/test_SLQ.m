@@ -15,7 +15,7 @@ x0 = [2; 3];
 uinit = 0*ones((3-0)/dz, 1);
 
 % solve the SLQ problem
-[ubar, dS, dsvec, dsscalar] = controller.run(x0, uinit, stimes);
+[x, u, dS, dsvec, dsscalar] = controller.run(x0, uinit, stimes);
 
 % get gradJ w.r.t switching time vector
 gradJ = [dsscalar{1,1}; dsscalar{2,1}];

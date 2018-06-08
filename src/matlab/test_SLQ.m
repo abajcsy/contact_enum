@@ -23,3 +23,5 @@ gradJ = [dsscalar{1,1}; dsscalar{2,1}];
 % use gradient method to update switching times
 alpha = 0.5;
 stimes = stimes + alpha*gradJ;
+
+% TODO: do Frank-Wolfe method for gradient update

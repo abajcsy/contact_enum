@@ -34,12 +34,6 @@ classdef SLQ
             obj.num_control = 1;
             obj.max_iter = 1;
             obj.stimes = [];
-            
-            % final cost coefficients
-            % Phi_f(x) = qfscalar + qfvec'*dx + 0.5*dx'*Qf*dx
-            
-            % running cost coefficients
-            % L(z,x,u) = qscalar + dx'*qvec + du'*r + dx'*P*du + 0.5*dx'*Q*dx + 0.5*du'*R*du
         end
         
         %% Solves the SLQ problem given initial state and control rollout

@@ -31,8 +31,8 @@ function switched_system_cartpole()
     mp = 1;
     mc = 10;
     l = 0.5;
-    d = 4;
-%     d = 0;
+%     d = 4;
+    d = 0;
     g = 9.81;
     t0 = 0;
     tfin = 8;
@@ -115,7 +115,7 @@ function switched_system_cartpole()
             dsfin = 0;
             dthetafin = 0;
             
-%             y = zeros(16, 1);
+%             y = zeros(18, 1);
             y = zeros(17, 1);
 
             if 0 <= x && x < 1
@@ -124,14 +124,12 @@ function switched_system_cartpole()
                 y(2) = theta0 + x * (thetafin - theta0);
                 y(3) = ds0 + x * (dsfin - ds0);
                 y(4) = dtheta0 + x * (dthetafin - dtheta0);
-%                 y(17) = 0;  % TODO How to initialize lambda?
             else
                 % \tau \in [1, 2]
                 y(1) = s0;
                 y(2) = theta0;
                 y(3) = ds0;
                 y(4) = dtheta0;
-%                 y(17) = 0;  % TODO How to initialize lambda?
             end
         end
         
@@ -161,20 +159,22 @@ function switched_system_cartpole()
             dp2dswitch = y(14);
             dp3dswitch = y(15);
             dp4dswitch = y(16);
-            lmda = y(17);
-%             lmda = 0;
+            lmda1 = y(17);
+%             lmda2 = y(18);
             
             if 0 <= x && x < 1
                 % \tau \in [0, 1) (the not-in-contact mode)
                 u1 = -(l * p3 - p4 * cos(theta))/(l * wu * (mc + mp - mp * cos(theta)^2));
                 u2 = -(mc * p4 + mp * p4 - l * mp * p3 * cos(theta))/(l * mp * wu * (mc + mp - mp * cos(theta)^2));
                 dydx = cartpole_odefun1(d, ddsdswitch, ddthetadswitch, dp1dswitch, dp2dswitch, dp3dswitch, dp4dswitch, ds, dtheta, dthetadswitch, g, l, mc, mp, p1, p2, p3, p4, t0, theta, tswitch, u1, u2, wp, wu);
-                dydx = [dydx; 0]; % \lambda does not vary over time
+                dydx = [dydx; 0];
+%                 dydx = [dydx; 0; 0]; % \lambda does not vary over time
             else
                 % \tau \in [1, 2] (the in-contact mode)
                 % Note that u_1 = u_2 = 0
                 dydx = cartpole_odefun2(ddsdswitch, ddthetadswitch, dp1dswitch, dp2dswitch, ds, dtheta, dthetadswitch, p1, p2, tfin, theta, tswitch, wp);
-                dydx = [dydx; 0]; % \lambda does not vary over time
+                dydx = [dydx; 0];
+%                 dydx = [dydx; 0; 0]; % \lambda does not vary over time
             end
         end
 
@@ -196,8 +196,8 @@ function switched_system_cartpole()
             dp2dswitch_a = ya(14);
             dp3dswitch_a = ya(15);
             dp4dswitch_a = ya(16);
-            lmda_a = ya(17);
-%             lmda_a = 0;
+            lmda1_a = ya(17);
+%             lmda2_a = ya(18);
             
             s_b = yb(1);
             theta_b = yb(2);
@@ -215,10 +215,14 @@ function switched_system_cartpole()
             dp2dswitch_b = yb(14);
             dp3dswitch_b = yb(15);
             dp4dswitch_b = yb(16);
-            lmda_b = yb(17);
-%             lmda_b = 0;
+            lmda1_b = yb(17);
+%             lmda2_b = yb(18);
             
-            res = cartpole_bcfun(ddsdswitch_a,ddthetadswitch_a,dp1dswitch_b,dp2dswitch_b,dp3dswitch_b,dp4dswitch_b,ds0,ds_a,dsdswitch_a,dtheta0,dtheta_a,dthetadswitch_a,l,lmda_a,p1_b,p2_b,p3_b,p4_b,s0,s_a,s_b,sgoal,theta0,theta_a,theta_b,wg);
+            lmda2_a = 0;
+            res = cartpole_bcfun(ddsdswitch_a,ddthetadswitch_a,dp1dswitch_b,dp2dswitch_b,dp3dswitch_b,dp4dswitch_b,ds0,ds_a,ds_b,dsdswitch_a,dtheta0,dtheta_a,dtheta_b,dthetadswitch_a,l,lmda1_a,lmda2_a,p1_b,p2_b,p3_b,p4_b,s0,s_a,s_b,sgoal,theta0,theta_a,theta_b,wg);
+            res = res(1:17);
+            
+%             res = cartpole_bcfun(ddsdswitch_a,ddthetadswitch_a,dp1dswitch_b,dp2dswitch_b,dp3dswitch_b,dp4dswitch_b,ds0,ds_a,dsdswitch_a,dtheta0,dtheta_a,dthetadswitch_a,l,lmda_a,p1_b,p2_b,p3_b,p4_b,s0,s_a,s_b,sgoal,theta0,theta_a,theta_b,wg);
 %             res = cartpole_bcfun(ddsdswitch_a,ddthetadswitch_a,dp1dswitch_b,dp2dswitch_b,dp3dswitch_b,dp4dswitch_b,ds0,ds_a,dsdswitch_a,dtheta0,dtheta_a,dthetadswitch_a,lmda_a,p1_b,p2_b,p3_b,p4_b,s0,s_a,s_b,sgoal,theta0,theta_a,wg);
 %             res = [res; 0];
             %             res = cartpole_bcfun(ddsdswitch_a, ddthetadswitch_a, dp1dswitch_b, dp2dswitch_b, dp3dswitch_b, dp4dswitch_b, ds0, ds_a, dsdswitch_a, dtheta0, dtheta_a, dthetadswitch_a, l, lmda_a, lmda_b, p1_b, p2_b, p3_b, p4_b, s0, s_a, s_b, sgoal, theta0, theta_a, theta_b, wg);

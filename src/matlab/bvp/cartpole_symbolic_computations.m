@@ -303,8 +303,8 @@ function compute_bc()
     % Initial state x_0 = (s_0, \theta_0, \dot{s}_0, \dot{\theta}_0)^\top 
     % Note that x(0) = x(a) = x_0
     
-    syms s_a theta_a ds_a dtheta_a s0 theta0 ds0 dtheta0 s_b theta_b ds_b dtheta_b dsdswitch_a dthetadswitch_a ddsdswitch_a ddthetadswitch_a p1_b p2_b p3_b p4_b dp1dswitch_b dp2dswitch_b dp3dswitch_b dp4dswitch_b wg sgoal swall l lmda_a lmda_b;
-    assume([s_a theta_a ds_a dtheta_a s0 theta0 ds0 dtheta0 s_b theta_b ds_b dtheta_b dsdswitch_a dthetadswitch_a ddsdswitch_a ddthetadswitch_a p1_b p2_b p3_b p4_b dp1dswitch_b dp2dswitch_b dp3dswitch_b dp4dswitch_b wg sgoal swall l lmda_a lmda_b], 'real');
+    syms s_a theta_a ds_a dtheta_a s0 theta0 ds0 dtheta0 s_b theta_b ds_b dtheta_b dsdswitch_a dthetadswitch_a ddsdswitch_a ddthetadswitch_a p1_b p2_b p3_b p4_b dp1dswitch_b dp2dswitch_b dp3dswitch_b dp4dswitch_b wg sgoal swall l lmda1_a lmda2_a lmda1_b lmda2_b;
+    assume([s_a theta_a ds_a dtheta_a s0 theta0 ds0 dtheta0 s_b theta_b ds_b dtheta_b dsdswitch_a dthetadswitch_a ddsdswitch_a ddthetadswitch_a p1_b p2_b p3_b p4_b dp1dswitch_b dp2dswitch_b dp3dswitch_b dp4dswitch_b wg sgoal swall l lmda1_a lmda2_a lmda1_b lmda2_b], 'real');
     
     % The final cost.
     psi = wg * (s_b - sgoal)^2;
@@ -315,9 +315,9 @@ function compute_bc()
                diff(dpsidx, dtheta_b)];
     
     % The final state constraint.
-    phi = swall - (l * sin(theta_b) + s_b);
-%     phi = theta_b;
-%     phi = 1 - s_b;
+%     phi = swall - (l * sin(theta_b) + s_b);
+    phi = [swall - (l * sin(theta_b) + s_b);
+           ds_b^2 + dtheta_b^2];       
     dphidx = [diff(phi, s_b), diff(phi, theta_b), diff(phi, ds_b), diff(phi, dtheta_b)];
     ddphidx = [diff(dphidx, s_b);
                diff(dphidx, theta_b);
@@ -325,30 +325,31 @@ function compute_bc()
                diff(dphidx, dtheta_b)];
            
     % Compute \lambda
-%     eqns = [p1_b == dpsidx(1) + lmda_a * dphidx(1), p2_b == dpsidx(2) + lmda_a * dphidx(2), p3_b == dpsidx(3) + lmda_a * dphidx(3), p4_b == dpsidx(4) + lmda_a * dphidx(4)];
-%     eqns = eqns(1:2);
-%     soln = solve(eqns, lmda_a);
-%     soln.lmda_a
-    % TODO figure this out (above); maybe need to add assumptions on
-    % variables
+    p = [p1_b; p2_b; p3_b; p4_b];
+    lmda = [lmda1_a; lmda2_a];
+%     eqns = p == dpsidx' + dphidx' * lmda
+%     soln = solve(eqns, lmda, 'ReturnConditions', true)
+    % TODO Why does the above fail to find a solution?
+    lmda_bc = [lmda1_a - ((2 * wg * (s_b - sgoal) - (p1_b + p2_b))/(1 + l * cos(theta_b)));
+               0];
+%                lmda2_a - ((p3_b + p4_b)/(2 * (ds_b + dtheta_b)))];
+    
+    p_bc = p - (dpsidx' + dphidx' * lmda);
+    
+    dpdswitch = [dp1dswitch_b; dp2dswitch_b; dp3dswitch_b; dp4dswitch_b];
+    dpdswitch_bc = dpdswitch - (dpsidx' + dphidx' * lmda);
             
     bc = [s_a - s0;
           theta_a - theta0;
           ds_a - ds0
           dtheta_a - dtheta0;
-          p1_b - (dpsidx(1) + dphidx(1) * lmda_a);
-          p2_b - (dpsidx(2) + dphidx(2) * lmda_a);
-          p3_b - (dpsidx(3) + dphidx(3) * lmda_a);
-          p4_b - (dpsidx(4) + dphidx(4) * lmda_a);
+          p_bc;
           dsdswitch_a;
           dthetadswitch_a;
           ddsdswitch_a;
           ddthetadswitch_a;
-          dp1dswitch_b - (ddpsidx(1) + ddphidx(1) * lmda_a);
-          dp2dswitch_b - (ddpsidx(2) + ddphidx(2) * lmda_a);
-          dp3dswitch_b - (ddphidx(3) + ddphidx(3) * lmda_a);
-          dp4dswitch_b - (ddphidx(4) + ddphidx(4) * lmda_a);
-          lmda_a - ((wg * (2 * s_b - 2 * sgoal) - (p1_b + p2_b)) / (1 + l * cos(theta_b)))]; % TODO this should come from the symbolic computations above
+          dpdswitch_bc;
+          lmda_bc]; 
     matlabFunction(bc, 'File', 'cartpole_bcfun');
 end
 

@@ -1,4 +1,6 @@
 function switched_system_example_2()
+    % Implementation of switched system example 2 from Xu and Antsaklis 
+    % (2004).
 
     % y = (x_1, 
     %      x_2, 

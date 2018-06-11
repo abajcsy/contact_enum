@@ -12,15 +12,19 @@
 % compute_ode2()
 % fprintf('## ...done.\n');
 
-% fprintf('## Computing boundary conditions...\n');
-% compute_bc()
+fprintf('## Computing boundary conditions...\n');
+compute_bc()
+fprintf('## ...done.\n');
+
+% fprintf('## Computing partial J_1 wrt switching time...\n');
+% compute_dJ();
 % fprintf('## ...done.\n');
 % ----- End generate ----- %
 
 % ----- Begin tests ----- %
-fprintf('## Running test on subsystem 1 ODE...\n');
-test_ode1()
-fprintf('## ...done.\n');
+% fprintf('## Running test on subsystem 1 ODE...\n');
+% test_ode1()
+% fprintf('## ...done.\n');
 % ----- End tests ----- %
 
 function compute_cartpole_dynamics()
@@ -312,30 +316,59 @@ function compute_bc()
     
     % The final state constraint.
     phi = swall - (l * sin(theta_b) + s_b);
+%     phi = theta_b;
+%     phi = 1 - s_b;
     dphidx = [diff(phi, s_b), diff(phi, theta_b), diff(phi, ds_b), diff(phi, dtheta_b)];
     ddphidx = [diff(dphidx, s_b);
                diff(dphidx, theta_b);
                diff(dphidx, ds_b);
                diff(dphidx, dtheta_b)];
+           
+    % Compute \lambda
+%     eqns = [p1_b == dpsidx(1) + lmda_a * dphidx(1), p2_b == dpsidx(2) + lmda_a * dphidx(2), p3_b == dpsidx(3) + lmda_a * dphidx(3), p4_b == dpsidx(4) + lmda_a * dphidx(4)];
+%     eqns = eqns(1:2);
+%     soln = solve(eqns, lmda_a);
+%     soln.lmda_a
+    % TODO figure this out (above); maybe need to add assumptions on
+    % variables
             
     bc = [s_a - s0;
           theta_a - theta0;
           ds_a - ds0
           dtheta_a - dtheta0;
-          p1_b - (dpsidx(1) + dphidx(1) * lmda_b);
-          p2_b - (dpsidx(2) + dphidx(2) * lmda_b);
-          p3_b - (dpsidx(3) + dphidx(3) * lmda_b);
-          p4_b - (dpsidx(4) + dphidx(4) * lmda_b);
+          p1_b - (dpsidx(1) + dphidx(1) * lmda_a);
+          p2_b - (dpsidx(2) + dphidx(2) * lmda_a);
+          p3_b - (dpsidx(3) + dphidx(3) * lmda_a);
+          p4_b - (dpsidx(4) + dphidx(4) * lmda_a);
           dsdswitch_a;
           dthetadswitch_a;
           ddsdswitch_a;
           ddthetadswitch_a;
-          dp1dswitch_b - (ddpsidx(1) + ddphidx(1) * lmda_b);
-          dp2dswitch_b - (ddpsidx(2) + ddphidx(2) * lmda_b);
-          dp3dswitch_b - (ddphidx(3) + ddphidx(3) * lmda_b);
-          dp4dswitch_b - (ddphidx(4) + ddphidx(4) * lmda_b);
-          lmda_a - lmda_b];
+          dp1dswitch_b - (ddpsidx(1) + ddphidx(1) * lmda_a);
+          dp2dswitch_b - (ddpsidx(2) + ddphidx(2) * lmda_a);
+          dp3dswitch_b - (ddphidx(3) + ddphidx(3) * lmda_a);
+          dp4dswitch_b - (ddphidx(4) + ddphidx(4) * lmda_a);
+          lmda_a - ((wg * (2 * s_b - 2 * sgoal) - (p1_b + p2_b)) / (1 + l * cos(theta_b)))]; % TODO this should come from the symbolic computations above
     matlabFunction(bc, 'File', 'cartpole_bcfun');
+end
+
+function compute_dJ()
+    syms wg sgoal s_b theta_b ds_b dtheta_b dsdswitch_b dthetadswitch_b ddsdswitch_b ddthetadswitch_b;
+    assume([wg sgoal s_b theta_b ds_b dtheta_b dsdswitch_b dthetadswitch_b ddsdswitch_b ddthetadswitch_b], 'real');
+    
+    % Compute first term. 
+    psi = wg * (s_b - sgoal)^2;
+    dpsidx = [diff(psi, s_b), diff(psi, theta_b), diff(psi, ds_b), diff(psi, dtheta_b)];
+    dxdswitch_b = [dsdswithc_b; dthetadswitch_b; ddsdswitch_b; ddthetadswitch_b];
+    disp(dpsidx * dxdswitch_b);
+    
+    % Taken from the above computation of u_1 and u_2
+    dudswitch_1 = [-((dp3dswitch*(t0 - tswitch))/(mc + mp - mp*cos(theta)^2) - (dp4dswitch*cos(theta)*(t0 - tswitch))/(l*(mc + mp - mp*cos(theta)^2)))/(wu*(t0 - tswitch));
+                   ((dp3dswitch*cos(theta)*(t0 - tswitch))/(mc + mp - mp*cos(theta)^2) - (dp4dswitch*(mc + mp)*(t0 - tswitch))/(l*mp*(mc + mp - mp*cos(theta)^2)))/(wu*(t0 - tswitch))];
+    dudswitch_2 = [0; 0];
+    
+    % Compute the term inside the first integrand.
+    % TODO finish this
 end
 
 function test_ode1()    

@@ -22,10 +22,14 @@ function switched_system_cartpole()
     % Cost function weights.
     wp = 5;
     wu = 1;
-    wg = 30;
-    
+%     wg = 30;
+    wg = 50;
+        
     % Goal position.
     sgoal = 1;
+    
+    % Wall position.
+    swall = 2;
     
     % Parameters. 
     mp = 1;
@@ -39,7 +43,9 @@ function switched_system_cartpole()
     
     % Initial state.
     s0 = 0;
-    theta0 = 0.5;
+%     s0 = swall - l;
+    theta0 = 0;
+%     theta0 = pi/2;
     ds0 = 0;
     dtheta0 = 0;
     
@@ -53,22 +59,32 @@ function switched_system_cartpole()
     % Plot the state and controls over time.
     figure(1);
     
-    subplot(2, 2, 1);
+    subplot(4, 2, 1);
     plot(t, sol.y(1, :), 'b-x');
     xlabel('$t$', 'Interpreter', 'latex');
     ylabel('$s$', 'Interpreter', 'latex');
 
-    subplot(2, 2, 2);
+    subplot(4, 2, 2);
     plot(t, sol.y(2, :), 'b-x');
     xlabel('$t$', 'Interpreter', 'latex');
     ylabel('$\theta$', 'Interpreter', 'latex');
     
-    subplot(2, 2, 3);
+    subplot(4, 2, 3);
+    plot(t, sol.y(3, :), 'b-x');
+    xlabel('$t$', 'Interpreter', 'latex');
+    ylabel('$\dot{s}$', 'Interpreter', 'latex');
+
+    subplot(4, 2, 4);
+    plot(t, sol.y(4, :), 'b-x');
+    xlabel('$t$', 'Interpreter', 'latex');
+    ylabel('$\dot{\theta}$', 'Interpreter', 'latex');
+    
+    subplot(4, 2, 5);
     plot(t, u(1, :), 'b-x');
     xlabel('$t$', 'Interpreter', 'latex');
     ylabel('$u_1$', 'Interpreter', 'latex');
     
-    subplot(2, 2, 4);
+    subplot(4, 2, 6);
     plot(t, u(2, :), 'b-x');
     xlabel('$t$', 'Interpreter', 'latex');
     ylabel('$u_2$', 'Interpreter', 'latex');
@@ -89,6 +105,9 @@ function switched_system_cartpole()
     
     lp1 = line([q(1) + cart_center(1), q(1) + cart_center(1) + l * sin(q(2))], [cart_center(2) + 0.5 * cart_height, cart_center(2) + 0.5 * cart_height + l * cos(q(2))]);
 
+    line([-2.5, 2.5], [0, 0], 'Color', 'red');
+    line([2, 2], [0, 2.5], 'Color', 'red');
+    
     % TODO Compute interpolated trajectory with fixed timestep (e.g. 0.01)
     % for smoother visualization. 
     
@@ -110,13 +129,18 @@ function switched_system_cartpole()
 
     function sol = solvebvp(tswitch)
         function y = guess(x)
-            sfin = 1;
+%             sfin = swall - l;
+%             thetafin = pi/2;
+            sfin = sgoal;
+%             sfin = 0;
             thetafin = 0;
             dsfin = 0;
             dthetafin = 0;
             
+            y = zeros(19, 1);
 %             y = zeros(18, 1);
-            y = zeros(17, 1);
+%             y = zeros(17, 1);
+%             y = zeros(16, 1);
 
             if 0 <= x && x < 1
                 % \tau \in [0, 1) 
@@ -126,10 +150,10 @@ function switched_system_cartpole()
                 y(4) = dtheta0 + x * (dthetafin - dtheta0);
             else
                 % \tau \in [1, 2]
-                y(1) = s0;
-                y(2) = theta0;
-                y(3) = ds0;
-                y(4) = dtheta0;
+                y(1) = sfin;
+                y(2) = thetafin;
+                y(3) = dsfin;
+                y(4) = dthetafin;
             end
         end
         
@@ -160,21 +184,24 @@ function switched_system_cartpole()
             dp3dswitch = y(15);
             dp4dswitch = y(16);
             lmda1 = y(17);
-%             lmda2 = y(18);
+            lmda2 = y(18);
+            lmda3 = y(19);
             
             if 0 <= x && x < 1
                 % \tau \in [0, 1) (the not-in-contact mode)
                 u1 = -(l * p3 - p4 * cos(theta))/(l * wu * (mc + mp - mp * cos(theta)^2));
                 u2 = -(mc * p4 + mp * p4 - l * mp * p3 * cos(theta))/(l * mp * wu * (mc + mp - mp * cos(theta)^2));
                 dydx = cartpole_odefun1(d, ddsdswitch, ddthetadswitch, dp1dswitch, dp2dswitch, dp3dswitch, dp4dswitch, ds, dtheta, dthetadswitch, g, l, mc, mp, p1, p2, p3, p4, t0, theta, tswitch, u1, u2, wp, wu);
-                dydx = [dydx; 0];
+%                 dydx = [dydx; 0];
 %                 dydx = [dydx; 0; 0]; % \lambda does not vary over time
+                dydx = [dydx; 0; 0; 0];
             else
                 % \tau \in [1, 2] (the in-contact mode)
                 % Note that u_1 = u_2 = 0
                 dydx = cartpole_odefun2(ddsdswitch, ddthetadswitch, dp1dswitch, dp2dswitch, ds, dtheta, dthetadswitch, p1, p2, tfin, theta, tswitch, wp);
-                dydx = [dydx; 0];
+%                 dydx = [dydx; 0];
 %                 dydx = [dydx; 0; 0]; % \lambda does not vary over time
+                dydx = [dydx; 0; 0; 0];
             end
         end
 
@@ -197,7 +224,8 @@ function switched_system_cartpole()
             dp3dswitch_a = ya(15);
             dp4dswitch_a = ya(16);
             lmda1_a = ya(17);
-%             lmda2_a = ya(18);
+            lmda2_a = ya(18);
+            lmda3_a = ya(19);
             
             s_b = yb(1);
             theta_b = yb(2);
@@ -216,17 +244,10 @@ function switched_system_cartpole()
             dp3dswitch_b = yb(15);
             dp4dswitch_b = yb(16);
             lmda1_b = yb(17);
-%             lmda2_b = yb(18);
+            lmda2_b = yb(18);
+            lmda3_b = yb(19);
             
-            lmda2_a = 0;
-            res = cartpole_bcfun(ddsdswitch_a,ddthetadswitch_a,dp1dswitch_b,dp2dswitch_b,dp3dswitch_b,dp4dswitch_b,ds0,ds_a,ds_b,dsdswitch_a,dtheta0,dtheta_a,dtheta_b,dthetadswitch_a,l,lmda1_a,lmda2_a,p1_b,p2_b,p3_b,p4_b,s0,s_a,s_b,sgoal,theta0,theta_a,theta_b,wg);
-            res = res(1:17);
-            
-%             res = cartpole_bcfun(ddsdswitch_a,ddthetadswitch_a,dp1dswitch_b,dp2dswitch_b,dp3dswitch_b,dp4dswitch_b,ds0,ds_a,dsdswitch_a,dtheta0,dtheta_a,dthetadswitch_a,l,lmda_a,p1_b,p2_b,p3_b,p4_b,s0,s_a,s_b,sgoal,theta0,theta_a,theta_b,wg);
-%             res = cartpole_bcfun(ddsdswitch_a,ddthetadswitch_a,dp1dswitch_b,dp2dswitch_b,dp3dswitch_b,dp4dswitch_b,ds0,ds_a,dsdswitch_a,dtheta0,dtheta_a,dthetadswitch_a,lmda_a,p1_b,p2_b,p3_b,p4_b,s0,s_a,s_b,sgoal,theta0,theta_a,wg);
-%             res = [res; 0];
-            %             res = cartpole_bcfun(ddsdswitch_a, ddthetadswitch_a, dp1dswitch_b, dp2dswitch_b, dp3dswitch_b, dp4dswitch_b, ds0, ds_a, dsdswitch_a, dtheta0, dtheta_a, dthetadswitch_a, l, lmda_a, lmda_b, p1_b, p2_b, p3_b, p4_b, s0, s_a, s_b, sgoal, theta0, theta_a, theta_b, wg);
-%             res = res(1:16);
+            res = cartpole_bcfun(ddsdswitch_a,ddthetadswitch_a,dp1dswitch_b,dp2dswitch_b,dp3dswitch_b,dp4dswitch_b,ds0,ds_a,ds_b,dsdswitch_a,dtheta0,dtheta_a,dtheta_b,dthetadswitch_a,l,lmda1_a,lmda2_a,lmda3_a,p1_b,p2_b,p3_b,p4_b,s0,s_a,s_b,sgoal,swall,theta0,theta_a,theta_b,wg);
         end
     end
 

@@ -303,8 +303,8 @@ function compute_bc()
     % Initial state x_0 = (s_0, \theta_0, \dot{s}_0, \dot{\theta}_0)^\top 
     % Note that x(0) = x(a) = x_0
     
-    syms s_a theta_a ds_a dtheta_a s0 theta0 ds0 dtheta0 s_b theta_b ds_b dtheta_b dsdswitch_a dthetadswitch_a ddsdswitch_a ddthetadswitch_a p1_b p2_b p3_b p4_b dp1dswitch_b dp2dswitch_b dp3dswitch_b dp4dswitch_b wg sgoal swall l lmda1_a lmda2_a lmda1_b lmda2_b;
-    assume([s_a theta_a ds_a dtheta_a s0 theta0 ds0 dtheta0 s_b theta_b ds_b dtheta_b dsdswitch_a dthetadswitch_a ddsdswitch_a ddthetadswitch_a p1_b p2_b p3_b p4_b dp1dswitch_b dp2dswitch_b dp3dswitch_b dp4dswitch_b wg sgoal swall l lmda1_a lmda2_a lmda1_b lmda2_b], 'real');
+    syms s_a theta_a ds_a dtheta_a s0 theta0 ds0 dtheta0 s_b theta_b ds_b dtheta_b dsdswitch_a dthetadswitch_a ddsdswitch_a ddthetadswitch_a p1_b p2_b p3_b p4_b dp1dswitch_b dp2dswitch_b dp3dswitch_b dp4dswitch_b wg sgoal swall l lmda1_a lmda2_a lmda3_a lmda1_b lmda2_b lmda3_b;
+    assume([s_a theta_a ds_a dtheta_a s0 theta0 ds0 dtheta0 s_b theta_b ds_b dtheta_b dsdswitch_a dthetadswitch_a ddsdswitch_a ddthetadswitch_a p1_b p2_b p3_b p4_b dp1dswitch_b dp2dswitch_b dp3dswitch_b dp4dswitch_b wg sgoal swall l lmda1_a lmda2_a lmda3_a lmda1_b lmda2_b lmda3_b], 'real');
     
     % The final cost.
     psi = wg * (s_b - sgoal)^2;
@@ -314,26 +314,22 @@ function compute_bc()
                diff(dpsidx, ds_b);
                diff(dpsidx, dtheta_b)];
     
-    % The final state constraint.
+    % The final state constraint defined as \phi(x_{t_f}) = 0.
 %     phi = swall - (l * sin(theta_b) + s_b);
+%     phi = [swall - (l * sin(theta_b) + s_b);
+%            ds_b^2 + dtheta_b^2];       
     phi = [swall - (l * sin(theta_b) + s_b);
-           ds_b^2 + dtheta_b^2];       
+           ds_b;
+           dtheta_b];
     dphidx = [diff(phi, s_b), diff(phi, theta_b), diff(phi, ds_b), diff(phi, dtheta_b)];
     ddphidx = [diff(dphidx, s_b);
                diff(dphidx, theta_b);
                diff(dphidx, ds_b);
                diff(dphidx, dtheta_b)];
-           
-    % Compute \lambda
+
     p = [p1_b; p2_b; p3_b; p4_b];
-    lmda = [lmda1_a; lmda2_a];
-%     eqns = p == dpsidx' + dphidx' * lmda
-%     soln = solve(eqns, lmda, 'ReturnConditions', true)
-    % TODO Why does the above fail to find a solution?
-    lmda_bc = [lmda1_a - ((2 * wg * (s_b - sgoal) - (p1_b + p2_b))/(1 + l * cos(theta_b)));
-               0];
-%                lmda2_a - ((p3_b + p4_b)/(2 * (ds_b + dtheta_b)))];
-    
+    lmda = [lmda1_a; lmda2_a; lmda3_a];
+          
     p_bc = p - (dpsidx' + dphidx' * lmda);
     
     dpdswitch = [dp1dswitch_b; dp2dswitch_b; dp3dswitch_b; dp4dswitch_b];
@@ -349,7 +345,7 @@ function compute_bc()
           ddsdswitch_a;
           ddthetadswitch_a;
           dpdswitch_bc;
-          lmda_bc]; 
+          phi]; 
     matlabFunction(bc, 'File', 'cartpole_bcfun');
 end
 

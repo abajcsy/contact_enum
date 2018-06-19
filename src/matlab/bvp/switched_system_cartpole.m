@@ -56,6 +56,10 @@ function switched_system_cartpole()
     t = evalt(sol.x, t1);
     u = evalu(sol.x, sol.y);
     
+    csvwrite('times.csv', t);
+    csvwrite('controls.csv', u);
+    csvwrite('states.csv', sol.y(1:4,:));
+    
     % Plot the state and controls over time.
     figure(1);
     

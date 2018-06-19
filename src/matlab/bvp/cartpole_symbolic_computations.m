@@ -4,13 +4,13 @@
 % fprintf('## ...done.\n');
 
 % ----- Begin generate ----- %
-% fprintf('## Computing subsystem 1 ODE...\n');
-% compute_ode1()
-% fprintf('## ...done.\n');
+fprintf('## Computing subsystem 1 ODE...\n');
+compute_ode1()
+fprintf('## ...done.\n');
 
-% fprintf('## Computing subsystem 2 ODE...\n');
-% compute_ode2()
-% fprintf('## ...done.\n');
+fprintf('## Computing subsystem 2 ODE...\n');
+compute_ode2()
+fprintf('## ...done.\n');
 
 fprintf('## Computing boundary conditions...\n');
 compute_bc()
